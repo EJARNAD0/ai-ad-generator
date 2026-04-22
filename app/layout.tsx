@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Ad Generator SaaS",
-  description: "Modern AI Ad Copy generator dashboard",
+  title: "AI Ad Generator",
+  description: "Generate platform-ready ad copy with AI",
 };
 
 export default function RootLayout({

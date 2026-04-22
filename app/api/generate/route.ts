@@ -1,52 +1,33 @@
 import { NextResponse } from "next/server";
+import { generateAdPipeline } from "@/lib/ai/pipeline";
+import type { AdBrief } from "@/types/ai";
 
 export async function POST(req: Request) {
-  const { product, audience, platform, tone } = await req.json();
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "API key not configured on the server." }, { status: 500 });
+  }
 
-  const prompt = [
-    "Generate high-converting ad copy.",
-    "",
-    `Product: ${product}`,
-    `Audience: ${audience}`,
-    `Platform: ${platform}`,
-    `Tone: ${tone || "Persuasive"}`,
-    "",
-    "Make the copy feel native to the selected platform, concise, benefit-led, and easy to scan.",
-    "Return exactly in this format:",
-    "Headline:",
-    "Ad Copy:",
-    "CTA:",
-  ].join("\n");
+  const body = await req.json() as Record<string, unknown>;
+  const brief: AdBrief = {
+    product: String(body.product ?? "").trim(),
+    audience: String(body.audience ?? "").trim(),
+    platform: String(body.platform ?? "").trim(),
+    tone: String(body.tone ?? "Persuasive").trim(),
+  };
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "meta-llama/llama-3-8b-instruct",
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
+  if (!brief.product || !brief.audience || !brief.platform) {
     return NextResponse.json(
-      {
-        error: data?.error?.message || "Generation failed.",
-      },
-      { status: response.status },
+      { error: "product, audience, and platform are required." },
+      { status: 400 },
     );
   }
 
-  return NextResponse.json({
-    result: data.choices?.[0]?.message?.content,
-  });
+  const result = await generateAdPipeline(brief, apiKey);
+
+  if (!result.success || !result.ad) {
+    return NextResponse.json({ error: result.error ?? "Generation failed." }, { status: 500 });
+  }
+
+  return NextResponse.json(result);
 }
