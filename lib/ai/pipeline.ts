@@ -7,13 +7,12 @@ import type {
   PipelineStepName,
   StreamEvent,
 } from "@/types/ai";
+import { LLM_TIMEOUT_MS, MODEL, OPENROUTER_URL } from "./config";
 import { logger } from "./logger";
 import { planAdStructure } from "./planner";
 import { buildCorrectivePrompt, buildUserPrompt, SYSTEM_PROMPT } from "./prompts";
 import { computeConfidenceScore, parseAdOutput, scoreAd, validateAd } from "./validator";
 
-const MODEL = "meta-llama/llama-3-8b-instruct";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_ATTEMPTS = 2;
 
 // ---------------------------------------------------------------------------
@@ -32,32 +31,40 @@ const makeStep = (
 // ---------------------------------------------------------------------------
 
 const callLLM = async (userPrompt: string, apiKey: string): Promise<string> => {
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-    const msg = (body?.error as Record<string, unknown>)?.message ?? `HTTP ${res.status}`;
-    throw new Error(String(msg));
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      const msg = (body?.error as Record<string, unknown>)?.message ?? `HTTP ${res.status}`;
+      throw new Error(String(msg));
+    }
+
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    return data.choices?.[0]?.message?.content ?? "";
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const data = await res.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  return data.choices?.[0]?.message?.content ?? "";
 };
 
 // ---------------------------------------------------------------------------

@@ -55,16 +55,19 @@ npm install
 
 ### Environment Setup
 
-Create a `.env.local` file in the project root:
-
 ```bash
 cp .env.local.example .env.local
 ```
 
-Add your OpenRouter API key:
+Open `.env.local` and fill in your key:
 
 ```env
+# Required
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Optional — override the model or API URL
+# OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct
+# OPENROUTER_URL=https://openrouter.ai/api/v1/chat/completions
 ```
 
 Your API key is only used server-side in the `/api/generate` routes — it is never exposed to the browser.
@@ -91,6 +94,7 @@ app/
 └── lib/score.ts           # UI score-band utility
 
 lib/ai/
+├── config.ts              # Shared constants: MODEL, OPENROUTER_URL, LLM_TIMEOUT_MS
 ├── pipeline.ts            # generateAdPipeline — orchestrates plan + generate + validate
 ├── planner.ts             # planAdStructure — standalone LLM call, returns AdPlan
 ├── prompts.ts             # System, user, and corrective prompt builders (plan-aware)
@@ -287,6 +291,7 @@ ai-ad-generator/
 │   └── globals.css
 ├── lib/
 │   └── ai/
+│       ├── config.ts         # MODEL, OPENROUTER_URL, LLM_TIMEOUT_MS
 │       ├── pipeline.ts
 │       ├── planner.ts
 │       ├── prompts.ts

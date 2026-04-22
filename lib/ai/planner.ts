@@ -1,8 +1,6 @@
 import type { AdBrief, AdPlan } from "@/types/ai";
+import { LLM_TIMEOUT_MS, MODEL, OPENROUTER_URL } from "./config";
 import { logger } from "./logger";
-
-const MODEL = "meta-llama/llama-3-8b-instruct";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const VALID_TONES = new Set(["Persuasive", "Professional", "Casual", "Urgent"]);
 const VALID_CTA_STYLES = new Set(["soft", "aggressive"]);
@@ -93,10 +91,14 @@ export const planAdStructure = async (
 ): Promise<AdPlan | null> => {
   logger.info("plan", { product: brief.product, platform: brief.platform, tone: brief.tone });
 
-  let res: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
+  let raw: string;
   try {
-    res = await fetch(OPENROUTER_URL, {
+    const res = await fetch(OPENROUTER_URL, {
       method: "POST",
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -109,23 +111,25 @@ export const planAdStructure = async (
         ],
       }),
     });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      const msg = (body?.error as Record<string, unknown>)?.message ?? `HTTP ${res.status}`;
+      logger.error("plan", { error: String(msg) });
+      return null;
+    }
+
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    raw = data.choices?.[0]?.message?.content ?? "";
   } catch (err) {
     logger.error("plan", { error: err instanceof Error ? err.message : String(err) });
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-    const msg = (body?.error as Record<string, unknown>)?.message ?? `HTTP ${res.status}`;
-    logger.error("plan", { error: String(msg) });
-    return null;
-  }
-
-  const data = await res.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  const raw = data.choices?.[0]?.message?.content ?? "";
   const plan = parseAdPlan(raw);
 
   if (plan) {
