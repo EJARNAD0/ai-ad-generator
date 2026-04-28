@@ -10,10 +10,15 @@ const VALID_TONES = new Set(["Persuasive", "Professional", "Casual", "Urgent"]);
 
 export const parseAdOutput = (raw: string): AdOutput | null => {
   try {
-    const cleaned = raw
-      .replace(/^```(?:json)?/im, "")
-      .replace(/```$/im, "")
-      .trim();
+    // Strip all markdown code fences
+    let cleaned = raw.replace(/```(?:json)?\s*/g, "").trim();
+
+    // Extract just the JSON object, ignoring any preamble or postamble text
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      cleaned = cleaned.slice(start, end + 1);
+    }
 
     const parsed: unknown = JSON.parse(cleaned);
 

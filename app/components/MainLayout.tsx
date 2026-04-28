@@ -19,7 +19,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
       </header>
 
-      <main className="w-full flex-1 px-5 py-8 sm:px-6 lg:px-8 xl:px-10">
+      <main className="w-full flex-1 px-5 py-5 sm:px-6 lg:px-8 xl:px-10">
         {children}
       </main>
     </div>
